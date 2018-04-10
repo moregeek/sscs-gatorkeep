@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#
+# run importer every 5 min
+#
+*/5 * * * * /usr/local/bin/chart_world_import > /dev/null 2>&1 

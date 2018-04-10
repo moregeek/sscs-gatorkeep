@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+#
+# Admirality Vector Charts and ChartWorld for OpenCPN
+#
+# copy exported files from ChartWorld into the correct subfolders of the
+# navigation share.
+#
+# author: Stefan Morgenthaler 
+# date: 	2018/03/29
+#
+
+shopt -s extglob
+
+SHARE_PATH="/shares/navigator";
+CONFIG_SELF="${SHARE_PATH}/.parse_cw_exports.config"
+
+# get last media state:
+# path: <path_to_smb_share_on_fileserver>/Charts/AVCS/<YYYY>-WK<XX>
+_LAST_BASE_MEDIA_SET="$(
+  basename $(
+    \ls -rtd ${SHARE_PATH}/Charts/AVCS/20[0-9][0-9]-WK[0-9][0-9] \
+      | head -1
+	)
+)"
+
+_CHARTS="${_LAST_BASE_MEDIA_SET}/BASE_CHARTS";  # base charts
+_UPDATES="${_LAST_BASE_MEDIA_SET}/UPDATES";     # chart updates
+_PERMITS="${_LAST_BASE_MEDIA_SET}/PERMITS";     # permit files
+_MISC="${_LAST_BASE_MEDIA_SET}/MISC";           # other updates not relevant for
+                                                # opencpn
+# if someteing has to be exported from chartworld it should be stored in this
+# folder.
+# network share/samba:
+#   \\files\navivator\PLACE_CHARTWORLD_EXPORTS_IN_THIS_FOLDER
+_IMPORT_FOLDER="${SHARE_PATH}/PLACE_CHARTWORLD_EXPORTS_IN_THIS_FOLDER"
+
+# USED IN: chart_world_sync
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  echo "_SRC='${SHARE_PATH}/Charts/AVCS/${_LAST_BASE_MEDIA_SET}/'";
+  echo "_TRG='Charts/AVCS/${_LAST_BASE_MEDIA_SET}/'";
+  return
+fi
+
+
+echo "========================================================================";
+echo "========================== Last Base Media Set =========================";
+echo "========================================================================";
+echo "YEAR....: ${_LAST_BASE_MEDIA_SET%-WK[0-9][0-9]}";
+echo "WEEK....: ${_LAST_BASE_MEDIA_SET#[0-9][0-9][0-9][0-9]-WK}";
+echo "========================================================================";
+
+for folder in $(ls ${_IMPORT_FOLDER}); do
+  case "${folder}" in
+    AVCS_CW_*_PERMITS) # ------------------------------- PERMIT
+			echo "Processing: '${folder}', TYPE: PERMIT..."
+      mv ${_IMPORT_FOLDER}/${folder} ${SHARE_PATH}/Charts/AVCS/${_LAST_BASE_MEDIA_SET}/PERMITS/
+      ;;
+
+    *Week*_CW_*_ENC_DATA_OFFICIAL_ENC_CUMULATIVE) # ---  CHART UPDATES
+			echo "Processing: '${folder}', TYPE: UPDATE..."
+      mv ${_IMPORT_FOLDER}/${folder} ${SHARE_PATH}/Charts/AVCS/${_LAST_BASE_MEDIA_SET}/UPDATES/
+      ;;
+
+    CW_*_MISCELLANEOUS) # ------------------------------ UPDATES OTHER, NOTICES
+			echo "Processing: '${folder}', TYPE: MISCELLANEOUS..."
+      mv ${_IMPORT_FOLDER}/${folder} ${SHARE_PATH}/Charts/AVCS/${_LAST_BASE_MEDIA_SET}/MISC/
+      ;;
+  esac
+done

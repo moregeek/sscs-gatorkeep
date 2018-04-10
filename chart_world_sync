@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+#
+# Admirality Vector Charts and ChartWorld for OpenCPN
+#
+# Sync files from navigator network share to local navigation pc.
+# Instruct users with a step by step guide of what to do and how.
+#
+# author: Stefan Morgenthaler <stefan@morgenthaler.at>
+# date: 	2018/04/09
+#
+# SRC: github.com/moregeek/sscs-gatorsync
+#
+
+
+# config loader
+#
+# configuration file name: "gatorsync.conf"
+# configuration file search paths:
+#   - "/etc/gatorsync"
+#   - path of "gatorsync"
+#
+if [ -f ${_conf:="/etc/gatorsync/gatorsync.conf"} ]; then
+  source ${_conf}
+else
+  source $(dirname $PWD/$0)/gatorsync.conf || exit 1
+fi
+
+
+_gateway_reachable? () {
+  ping -c5 -W3 "$1" \
+   | ${_zenity} --progress --pulsate --auto-close --no-cancel \
+       --text="Waiting for <b>$2</b> to become available..."
+
+  if [ "${PIPESTATUS[0]}" == "0" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+_zenity="zenity --width=650"
+
+_cancel () {
+  echo "Canceled by user.."
+  exit 1
+}
+
+# show info dialog about the upcoming steps
+${_zenity} --info \
+  --text="${_gui_infomsg_1['text']}" \
+  --title="${_gui_infomsg_1['title']}" || _cancel 1
+
+# check if fileserver/share is reachable
+while ! _gateway_reachable? "${gw}" "REGULAR NETWORK"; do
+  ${_zenity} --error \
+    --text="${_gui_errmsg_1['text']}" \
+    --title="${_gui_errmsg_1['title']}" || _cancel 1
+done
+
+# get: $_SRC and $_TRG (without user part)
+eval $(ssh -o StrictHostKeyChecking=no comms@si-ls-files.steve.bitshepherd.org 'source /usr/local/bin/chart_world_import')
+
+# MIND: running on navigation pc
+if [[ ! -f ${_rsync_awk:="/etc/gatorsync/rsync.awk"} ]]; then
+  _rsync_awk="$(dirname $PWD/$0)/rsync.awk";
+fi
+
+# create target directory on local pc
+[[ ! -d "/home/$USER/${_TRG}" ]] && mkdir -p "/home/$USER/${_TRG}";
+
+rsync -e "ssh -o StrictHostKeyChecking=no" -av --progress \
+  comms@si-ls-files.steve.bitshepherd.org:${_SRC} /home/$USER/${_TRG} \
+  | awk -f ${_rsync_awk} \
+  | ${_zenity} --progress --title "Syncing CHARTS and PERMITS" \
+      --text="Scanning..." --percentage=0 --auto-kill
+
+if [ "${PIPESTATUS[0]}" == "0" ]; then
+  ${_zenity} --info --title="Copying CHARTS and PERMITS" \
+    --text="Copying finished! One more step to go...";
+  echo "rsync failed?"
+fi
+
+# show info dialog about the upcoming steps
+${_zenity} --info \
+  --text="${_gui_infomsg_2['text']}" \
+  --title="${_gui_infomsg_2['title']}" || _cancel 1
+
+
+
+
+# TODO
+#
+# show ok sync
+# show info dialog 2
+#
+
+# check if fileserver/share is NOT reachable anymore
+while _gateway_reachable? "${gw}" "ISOLATED NETWORK"; do
+  ${_zenity} --error \
+    --text="${_gui_errmsg_2['text']}" \
+    --title="${_gui_errmsg_2['title']}" \
+      || {
+        ${_zenity} --question --default-cancel \
+          --title="${_gui_question1['title']}" \
+          --text="${_gui_question1['text']}" && _cancel
+      }
+done
+
+# rsync
+# change back to ISOLATED NETWORK
+# Show list of files to import
+
+
